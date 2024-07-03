@@ -18,6 +18,7 @@ public class PooledPgDataSource implements DataSource {
     private final DataSource delegate;
     private final List<PgConnectionProxy> pool = new ArrayList<>();
     private final Duration shutdownTimeout = Duration.ofSeconds(5);
+    private final Duration connectionRetrievalTimeout = Duration.ofSeconds(5);
 
     public PooledPgDataSource(DataSource dataSource) {
         this(dataSource, 10);
@@ -45,6 +46,10 @@ public class PooledPgDataSource implements DataSource {
         return pool.stream().anyMatch(connection -> !connection.isReleased());
     }
 
+    private boolean allConnectionsAreTaken() {
+        return pool.stream().noneMatch(PgConnectionProxy::isReleased);
+    }
+
     private void sleepFor(Duration duration) {
         try {
             Thread.sleep(duration);
@@ -64,6 +69,11 @@ public class PooledPgDataSource implements DataSource {
     @Override
     public Connection getConnection() throws SQLException {
         synchronized (pool) {
+            long start = System.currentTimeMillis();
+            while (allConnectionsAreTaken() && (System.currentTimeMillis() - start) < connectionRetrievalTimeout.toMillis()) {
+                System.out.println("Waiting for some connection to be released...");
+                sleepFor(Duration.ofMillis(20));
+            }
             var connection = pool.stream().filter(PgConnectionProxy::isReleased).findAny()
                     .orElseThrow(() -> new SQLException("No available connections in the pool"));
             connection.markAsTaken();
