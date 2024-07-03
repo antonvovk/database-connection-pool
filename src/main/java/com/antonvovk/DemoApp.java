@@ -21,6 +21,10 @@ public class DemoApp {
 
         var end = System.nanoTime();
         System.out.println((end - start) / 1000_000 + "ms");
+
+        if (dataSource instanceof PooledPgDataSource pooledPgDataSource) {
+            pooledPgDataSource.shutdown();
+        }
     }
 
     private static DataSource initDb() { // todo: refactor to use a custom pooled data source
@@ -28,6 +32,6 @@ public class DemoApp {
         dataSource.setURL("jdbc:postgresql://10.10.40.254:5432/bobocode");
         dataSource.setUser("bobocode_user");
         dataSource.setPassword("bobocode_pwd");
-        return dataSource;
+        return new PooledPgDataSource(dataSource);
     }
 }
